@@ -1,0 +1,15 @@
+{
+    "version": "0.2",
+    "__metadata__": {
+        "url": "https://gtrx.rbsapp.net/about.html"
+    },
+    "dumper" : {
+        "data_url" : ["https://www.dropbox.com/s/w5iumznv4dduyq0/GTRx_Joined_Data2-1-2022.xlsx?dl=0"],
+        "uncompress" : false,
+        "release": "version:get_release"
+    },
+    "uploader" : {
+        "parser" : "parser:load_data",
+        "on_duplicates": "error"
+    }
+}
