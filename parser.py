@@ -128,6 +128,8 @@ def load_data(data_folder):
         doc['condition'] = condition
         if gene_information != {}:
             doc['gene information'] = gene_information
-        doc['interventions'] = interventions
-        doc['references'] = references
+        if interventions != []:
+            doc['interventions'] = interventions
+        if references != []:
+            doc['references'] = references
         yield doc
