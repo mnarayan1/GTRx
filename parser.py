@@ -1,15 +1,14 @@
 import pandas as pd
 import os
-import json
 
 
 def get_alternate_names(df, index):
-    # create data frame for condition names in a row
+    # data frame for row's alternate names
     alternate_name_mask = df.columns.str.contains('condition_name_')
     alternate_name_df = df.iloc[:, alternate_name_mask]
     new_df = alternate_name_df.iloc[index].dropna()
 
-    # array of all alternate names for particular condition
+    # array of parsed alternate names
     alternate_names = []
 
     for value in new_df:
@@ -22,12 +21,12 @@ def get_interventions(df, index):
     headers = ['int_description_', 'timeframe_int', 'age_use_int',
                'contra_int', 'qualscale_reclass_drug', 'rev1_eff_reclass_drug']
 
-    # create dataframe of all interventions for a condition
+    # dataframe of interventions for a condition
     int_description_mask = df.columns.str.contains('int_description_')
     int_description_mask = df.iloc[:, int_description_mask]
     new_df = int_description_mask.iloc[index].dropna()
 
-    # array of all interventions for a particular condition
+    # array of parsed intervention information
     interventions_array = []
 
     for i in range(1, new_df.size+1):
@@ -44,12 +43,12 @@ def get_interventions(df, index):
 def get_references(df, index):
     headers = ['pmid_title_', 'pmid_', 'pmid_date_', 'pmid_journal_']
 
-    # create data frame of all references for a condition
+    # dataframe of all references for a condition
     references_mask = df.columns.str.contains('pmid_title_')
     references_df = df.iloc[:, references_mask]
     new_df = references_df.iloc[index].dropna()
 
-    # array of all references for a condition
+    # array of parsed references
     references_array = []
 
     for i in range(1, new_df.size+1):
@@ -66,7 +65,7 @@ def get_references(df, index):
 def get_clinical_summary(df, index):
     headers = ['rcgim_clinical_summary', 'rcgim_clinical_summary2']
 
-    # array of clinical summaries for a condition
+    # array of parsed clinical summaries
     clinical_summary_array = []
 
     for header in headers:
@@ -83,7 +82,7 @@ def get_condition(df, index):
     clinical_summary = get_clinical_summary(df, index)
     alternate_names = get_alternate_names(df, index)
 
-    # condition information object
+    # object with condition information
     condition_information = {}
 
     for header in headers:
@@ -102,7 +101,7 @@ def get_condition(df, index):
 def get_gene_information(df, index):
     headers = ['db_hgnc_gene_id', 'rcgim_clinical_summary2']
 
-    # object of gene information
+    # object with gene information
     gene_information = {}
 
     for header in headers:
