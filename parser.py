@@ -63,7 +63,7 @@ def get_references(df, index):
 
 
 def get_clinical_summary(df, index):
-    headers = ['rcgim_clinical_summary', 'rcgim_clinical_summary2']
+    headers = ['rcigm_clinical_summary', 'rcigm_clinical_summary2']
 
     # array of parsed clinical summaries
     clinical_summary_array = []
@@ -99,7 +99,7 @@ def get_condition(df, index):
 
 
 def get_gene_information(df, index):
-    headers = ['db_hgnc_gene_id', 'rcgim_clinical_summary2']
+    headers = ['db_hgnc_gene_id', 'db_hgnc_gene_symbol']
 
     # object with gene information
     gene_information = {}
