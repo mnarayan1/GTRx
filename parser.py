@@ -41,7 +41,10 @@ def get_interventions(df, index):
 
 
 def get_references(df, index):
-    headers = ['pmid_title_', 'pmid_', 'pmid_date_', 'pmid_journal_']
+    headers = {'title': 'pmid_title_',
+               'pmid': 'pmid_',
+               'date': 'pmid_date_',
+               'journal': 'pmid_journal_'}
 
     # dataframe of all references for a condition
     references_mask = df.columns.str.contains('pmid_title_')
@@ -53,10 +56,12 @@ def get_references(df, index):
 
     for i in range(1, new_df.size+1):
         doc = {}
-        for header in headers:
-            if f'{header}{i}' in df.columns:
-                if pd.isnull(df[f'{header}{i}'][index]) == False:
-                    doc[f'{header}{i}'] = df[f'{header}{i}'][index]
+        for key, value in headers.items():
+            if f'{value}{i}' in df.columns and pd.isnull(df[f'{value}{i}'][index]) == False:
+                cell_content = df[f'{value}{i}'][index]
+                if isinstance(cell_content, float):
+                    data = int(data)
+                doc[key] = data
         doc != {} and references_array.append(doc)
 
     return references_array
