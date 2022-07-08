@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+import re
 
 
 def get_alternate_names(df, index):
@@ -60,8 +61,8 @@ def get_references(df, index):
             if f'{value}{i}' in df.columns and pd.isnull(df[f'{value}{i}'][index]) == False:
                 cell_content = df[f'{value}{i}'][index]
                 if isinstance(cell_content, float):
-                    data = int(data)
-                doc[key] = data
+                    cell_content = int(cell_content)
+                doc[key] = cell_content
         doc != {} and references_array.append(doc)
 
     return references_array
@@ -84,6 +85,7 @@ def get_clinical_summary(df, index):
 def get_condition(df, index):
     headers = ['condition_name', 'freq_per_birth', 'pattern_of_inheritance']
 
+    omim = df['record_id'][index].split('OMIM:')[-1]
     clinical_summary = get_clinical_summary(df, index)
     alternate_names = get_alternate_names(df, index)
 
@@ -99,22 +101,9 @@ def get_condition(df, index):
         condition_information['clinical_summary'] = clinical_summary
     if alternate_names != []:
         condition_information['alternate_names'] = alternate_names
+    condition_information['omim'] = omim
 
     return condition_information
-
-
-def get_gene_information(df, index):
-    headers = ['db_hgnc_gene_id', 'db_hgnc_gene_symbol']
-
-    # object with gene information
-    gene_information = {}
-
-    for header in headers:
-        if header in df.columns:
-            if pd.isnull(df[header][index]) == False:
-                gene_information[header] = df[header][index]
-
-    return gene_information
 
 
 def load_data(data_folder):
@@ -122,19 +111,59 @@ def load_data(data_folder):
         data_folder, 'GTRx_Joined_Data2-1-2022.xlsx'), engine='openpyxl')
 
     for index, row in df.iterrows():
-        id = row['record_id']
-        condition = get_condition(df, index)
-        gene_information = get_gene_information(df, index)
-        interventions = get_interventions(df, index)
-        references = get_references(df, index)
+        interventions_mask = df.columns.str.contains('use_group_')
+        interventions_df = df.iloc[:, interventions_mask]
+        new_df = interventions_df.iloc[index].dropna()
 
-        doc = {}
-        doc['_id'] = id
-        doc['condition'] = condition
-        if gene_information != {}:
-            doc['gene information'] = gene_information
-        if interventions != []:
-            doc['interventions'] = interventions
-        if references != []:
-            doc['references'] = references
-        yield doc
+        level2_groups = []
+
+        for key, value in new_df.items():
+            if 'Retain' in value:
+                group_number = key.split('use_group_')[-1]
+                level2_groups.append(group_number)
+
+        for level2_group in level2_groups:
+
+            int_cell = df[f'level2_group{level2_group}'][index]
+            int_descriptions = re.sub(
+                '\[|\]', '', int_cell).split(',')
+
+            doc = {"_id": row['record_id'].split('-')[-1]}
+            object = {"intervention": []}
+
+            for int in int_descriptions:
+                int_number = int.split('int_description_')[-1]
+                inxight = ""
+
+                description = row[f'int_description_{int_number}']
+                int_link = row[f'int_link_{int_number}'][index]
+
+                if 'drugs.ncats.io/drug/' in int_link:
+                    inxight = df[f'int_link_{int_number}'][index].split(
+                        'https://drugs.ncats.io/drug/')[-1]
+
+                int_class = df[f'int_class_{int_number}'][index]
+
+                intervention = {}
+                intervention['name'] = description
+                if inxight != "":
+                    intervention['inxight'] = inxight
+                    doc['_id'] += '-'+inxight
+                intervention['int_class'] = int_class
+
+                object['intervention'].append(intervention)
+
+            object['level2_group'] = level2_group
+            object['priority_class'] = row[f'priority_class_drug{level2_group}']
+            object['timeframe'] = row[f'timeframe_int{level2_group}']
+            object['age_use'] = row[f'age_use_int{level2_group}']
+            object['contra'] = row[f'contra_int{level2_group}']
+            object['qualscale_reclass'] = row[f'qualscale_reclass_drug{level2_group}']
+            object['rev1_eff_reclass'] = row[f'rev1_eff_reclass_drug{level2_group}']
+
+            doc["subject"] = get_condition(df, index)
+            doc['predicate'] = 'treated_by'
+            doc["object"] = object
+            doc["references"] = get_references(df, index)
+
+            yield doc
