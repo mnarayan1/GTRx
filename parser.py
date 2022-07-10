@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 import re
+import json
 
 
 def get_alternate_names(df, index):
@@ -16,29 +17,6 @@ def get_alternate_names(df, index):
         alternate_names.append(value)
 
     return alternate_names
-
-
-def get_interventions(df, index):
-    headers = ['int_description_', 'timeframe_int', 'age_use_int',
-               'contra_int', 'qualscale_reclass_drug', 'rev1_eff_reclass_drug']
-
-    # dataframe of interventions for a condition
-    int_description_mask = df.columns.str.contains('int_description_')
-    int_description_mask = df.iloc[:, int_description_mask]
-    new_df = int_description_mask.iloc[index].dropna()
-
-    # array of parsed intervention information
-    interventions_array = []
-
-    for i in range(1, new_df.size+1):
-        doc = {}
-        for header in headers:
-            if f'{header}{i}' in df.columns:
-                if pd.isnull(df[f'{header}{i}'][index]) == False:
-                    doc[f'{header}{i}'] = df[f'{header}{i}'][index]
-        doc != {} and interventions_array.append(doc)
-
-    return interventions_array
 
 
 def get_references(df, index):
@@ -110,60 +88,100 @@ def load_data(data_folder):
     df = pd.read_excel(os.path.join(
         data_folder, 'GTRx_Joined_Data2-1-2022.xlsx'), engine='openpyxl')
 
+    int_headers = {
+        'priority_class': 'priority_class_drug',
+        'timeframe': 'timeframe_int',
+        'age_use': 'age_use_int',
+        'contra': 'contra_int',
+        'qualscale_reclass': 'qualscale_reclass_drug',
+        'rev1_eff_reclass': 'rev1_eff_reclass_drug'
+    }
+
     for index, row in df.iterrows():
-        interventions_mask = df.columns.str.contains('use_group_')
+        headers = ['use_group_', 'add_int_description_']
+        interventions_mask = df.columns.str.contains(
+            '|'.join(headers))
         interventions_df = df.iloc[:, interventions_mask]
         new_df = interventions_df.iloc[index].dropna()
 
         level2_groups = []
+        _id = row['record_id'].split('-')[-1]
+        subject = get_condition(df, index)
+        predicate = 'treated_by'
+        references = get_references(df, index)
 
         for key, value in new_df.items():
+            if 'add_int_' in key:
+                add_int_number = key.split('add_int_description_')[-1]
+
+                add_int_description = row[f'add_int_description_{add_int_number}']
+                if pd.isnull(row[f'add_int_detail_{add_int_number}']) == False:
+                    add_int_detail = row[f'add_int_detail_{add_int_number}']
+
+                doc = {}
+                doc['_id'] = _id
+                doc['subject'] = subject
+                doc['predicate'] = predicate
+                doc['object'] = {
+                    'add_int_description': add_int_description, 'add_int_detail': add_int_detail}
+                doc['references'] = references
+                yield doc
+
             if 'Retain' in value:
                 group_number = key.split('use_group_')[-1]
                 level2_groups.append(group_number)
 
-        for level2_group in level2_groups:
+                for level2_group in level2_groups:
 
-            int_cell = df[f'level2_group{level2_group}'][index]
-            int_descriptions = re.sub(
-                '\[|\]', '', int_cell).split(',')
+                    int_cell = df[f'level2_group{level2_group}'][index]
+                    int_descriptions = re.sub(
+                        '\[|\]', '', int_cell).split(',')
 
-            doc = {"_id": row['record_id'].split('-')[-1]}
-            object = {"intervention": []}
+                    doc = {'_id': _id}
+                    object = {"intervention": []}
 
-            for int in int_descriptions:
-                int_number = int.split('int_description_')[-1]
-                inxight = ""
+                    for int in int_descriptions:
+                        int_number = int.split('int_description_')[-1]
+                        inxight = ""
 
-                description = row[f'int_description_{int_number}']
-                int_link = row[f'int_link_{int_number}'][index]
+                        description = row[f'int_description_{int_number}']
+                        int_link = row[f'int_link_{int_number}']
 
-                if 'drugs.ncats.io/drug/' in int_link:
-                    inxight = df[f'int_link_{int_number}'][index].split(
-                        'https://drugs.ncats.io/drug/')[-1]
+                        if 'drugs.ncats.io/drug/' in str(int_link):
+                            inxight = df[f'int_link_{int_number}'][index].split(
+                                'https://drugs.ncats.io/drug/')[-1]
 
-                int_class = df[f'int_class_{int_number}'][index]
+                        intervention = {}
+                        intervention['name'] = description
+                        if inxight != "":
+                            intervention['inxight'] = inxight
+                            doc['_id'] += '-'+inxight
+                        else:
+                            print('inxight not found')
+                        if pd.isnull(row[f'int_link_{int_number}']) == False:
+                            intervention['int_class'] = row[f'int_class_{int_number}']
 
-                intervention = {}
-                intervention['name'] = description
-                if inxight != "":
-                    intervention['inxight'] = inxight
-                    doc['_id'] += '-'+inxight
-                intervention['int_class'] = int_class
+                        object['intervention'].append(intervention)
 
-                object['intervention'].append(intervention)
+                    for key, value in int_headers.items():
+                        if f'{value}{level2_group}' in df.columns and pd.isnull(row[f'{value}{level2_group}']) == False:
+                            cell_content = row[f'{value}{level2_group}']
+                            object[key] = cell_content
 
-            object['level2_group'] = level2_group
-            object['priority_class'] = row[f'priority_class_drug{level2_group}']
-            object['timeframe'] = row[f'timeframe_int{level2_group}']
-            object['age_use'] = row[f'age_use_int{level2_group}']
-            object['contra'] = row[f'contra_int{level2_group}']
-            object['qualscale_reclass'] = row[f'qualscale_reclass_drug{level2_group}']
-            object['rev1_eff_reclass'] = row[f'rev1_eff_reclass_drug{level2_group}']
+                    doc['subject'] = subject
+                    doc['predicate'] = predicate
+                    doc['object'] = object
+                    doc['references'] = get_references(df, index)
 
-            doc["subject"] = get_condition(df, index)
-            doc['predicate'] = 'treated_by'
-            doc["object"] = object
-            doc["references"] = get_references(df, index)
+                    yield doc
 
-            yield doc
+
+stuff = load_data('')
+
+json_data = {"records": []}
+for item in stuff:
+    print(item)
+    json_data["records"].append(item)
+
+with open('gtrx_data.json', 'w') as f:
+    json.dump(json_data, f)
