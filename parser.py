@@ -2,6 +2,7 @@ import pandas as pd
 import os
 import re
 import json
+import warnings
 
 
 def get_alternate_names(df, index):
@@ -105,6 +106,7 @@ def load_data(data_folder):
         new_df = interventions_df.iloc[index].dropna()
 
         level2_groups = []
+
         _id = row['record_id'].split('-')[-1]
         subject = get_condition(df, index)
         predicate = 'treated_by'
@@ -138,10 +140,10 @@ def load_data(data_folder):
                         '\[|\]', '', int_cell).split(',')
 
                     doc = {'_id': _id}
-                    object = {"intervention": []}
+                    object = {'intervention': [], 'level2_group': level2_group}
 
-                    for int in int_descriptions:
-                        int_number = int.split('int_description_')[-1]
+                    for intervention in int_descriptions:
+                        int_number = intervention.split('int_description_')[-1]
                         inxight = ""
 
                         description = row[f'int_description_{int_number}']
@@ -151,27 +153,30 @@ def load_data(data_folder):
                             inxight = df[f'int_link_{int_number}'][index].split(
                                 'https://drugs.ncats.io/drug/')[-1]
 
-                        intervention = {}
-                        intervention['name'] = description
+                        intervention_information = {}
+                        intervention_information['name'] = description
                         if inxight != "":
-                            intervention['inxight'] = inxight
+                            intervention_information['inxight'] = inxight
                             doc['_id'] += '-'+inxight
                         else:
-                            print('inxight not found')
-                        if pd.isnull(row[f'int_link_{int_number}']) == False:
-                            intervention['int_class'] = row[f'int_class_{int_number}']
+                            warnings.warn(
+                                f'inxight not found: {_id}, {description}')
+                        if f'int_class{int_number}' in df.columns and pd.isnull(row[f'int_class{int_number}']) == False:
+                            intervention_information['int_class'] = row[f'int_class_{int_number}']
 
-                        object['intervention'].append(intervention)
+                        object['intervention'].append(intervention_information)
 
                     for key, value in int_headers.items():
                         if f'{value}{level2_group}' in df.columns and pd.isnull(row[f'{value}{level2_group}']) == False:
                             cell_content = row[f'{value}{level2_group}']
+                            if isinstance(cell_content, float):
+                                cell_content = int(cell_content)
                             object[key] = cell_content
 
                     doc['subject'] = subject
                     doc['predicate'] = predicate
                     doc['object'] = object
-                    doc['references'] = get_references(df, index)
+                    doc['references'] = references
 
                     yield doc
 
@@ -180,7 +185,6 @@ stuff = load_data('')
 
 json_data = {"records": []}
 for item in stuff:
-    print(item)
     json_data["records"].append(item)
 
 with open('gtrx_data.json', 'w') as f:
