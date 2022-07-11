@@ -89,7 +89,7 @@ def load_data(data_folder):
     df = pd.read_excel(os.path.join(
         data_folder, 'GTRx_Joined_Data2-1-2022.xlsx'), engine='openpyxl')
 
-    int_headers = {
+    int_properties = {
         'priority_class': 'priority_class_drug',
         'timeframe': 'timeframe_int',
         'age_use': 'age_use_int',
@@ -99,20 +99,20 @@ def load_data(data_folder):
     }
 
     for index, row in df.iterrows():
+        _id = row['record_id'].split('-')[-1]
+        subject = get_condition(df, index)
+        predicate = 'treated_by'
+        references = get_references(df, index)
+
+        # get use groups and additional interventions for a condition
         headers = ['use_group_', 'add_int_description_']
         interventions_mask = df.columns.str.contains(
             '|'.join(headers))
         interventions_df = df.iloc[:, interventions_mask]
         new_df = interventions_df.iloc[index].dropna()
 
-        level2_groups = []
-
-        _id = row['record_id'].split('-')[-1]
-        subject = get_condition(df, index)
-        predicate = 'treated_by'
-        references = get_references(df, index)
-
         for key, value in new_df.items():
+            # add records for additional interventions
             if 'add_int_' in key:
                 add_int_number = key.split('add_int_description_')[-1]
 
@@ -129,56 +129,56 @@ def load_data(data_folder):
                 doc['references'] = references
                 yield doc
 
+            # add records for retained use groups
             if 'Retain' in value:
                 group_number = key.split('use_group_')[-1]
-                level2_groups.append(group_number)
 
-                for level2_group in level2_groups:
+                group_interventions = row[f'level2_group{group_number}']
+                int_descriptions = re.sub(
+                    '\[|\]', '', group_interventions).split(',')
 
-                    int_cell = df[f'level2_group{level2_group}'][index]
-                    int_descriptions = re.sub(
-                        '\[|\]', '', int_cell).split(',')
+                doc = {'_id': _id}
+                inxight = ""
+                object = {'intervention': [], 'level2_group': group_number}
 
-                    doc = {'_id': _id}
-                    object = {'intervention': [], 'level2_group': level2_group}
+                for intervention in int_descriptions:
+                    int_number = intervention.split('int_description_')[-1]
+                    int_name = row[f'int_description_{int_number}']
+                    int_link = str(row[f'int_link_{int_number}'])
 
-                    for intervention in int_descriptions:
-                        int_number = intervention.split('int_description_')[-1]
-                        inxight = ""
-
-                        description = row[f'int_description_{int_number}']
-                        int_link = row[f'int_link_{int_number}']
-
-                        if 'drugs.ncats.io/drug/' in str(int_link):
-                            inxight = df[f'int_link_{int_number}'][index].split(
-                                'https://drugs.ncats.io/drug/')[-1]
-
-                        intervention_information = {}
-                        intervention_information['name'] = description
-                        if inxight != "":
-                            intervention_information['inxight'] = inxight
-                            doc['_id'] += '-'+inxight
-                        else:
+                    if 'drugs.ncats.io/drug/' in int_link:
+                        inxight = row[f'int_link_{int_number}'].split(
+                            'https://drugs.ncats.io/drug/')[-1]
+                    else:
+                        if 'redcap.radygenomicslab.com' not in int_link:
                             warnings.warn(
-                                f'inxight not found: {_id}, {description}')
-                        if f'int_class{int_number}' in df.columns and pd.isnull(row[f'int_class{int_number}']) == False:
-                            intervention_information['int_class'] = row[f'int_class_{int_number}']
+                                f'inxight not found: {_id}, {int_name}')
+                        continue
 
-                        object['intervention'].append(intervention_information)
+                    intervention_information = {}
+                    intervention_information['name'] = int_name
+                    intervention_information['inxight'] = inxight
+                    doc['_id'] += '-'+inxight
+                    if f'int_class_{int_number}' in df.columns and pd.isnull(row[f'int_class_{int_number}']) == False:
+                        intervention_information['int_class'] = row[f'int_class_{int_number}']
 
-                    for key, value in int_headers.items():
-                        if f'{value}{level2_group}' in df.columns and pd.isnull(row[f'{value}{level2_group}']) == False:
-                            cell_content = row[f'{value}{level2_group}']
-                            if isinstance(cell_content, float):
-                                cell_content = int(cell_content)
-                            object[key] = cell_content
+                    object['intervention'].append(intervention_information)
 
-                    doc['subject'] = subject
-                    doc['predicate'] = predicate
-                    doc['object'] = object
-                    doc['references'] = references
+                if inxight == "":
+                    continue
 
-                    yield doc
+                for key, value in int_properties.items():
+                    if f'{value}{group_number}' in df.columns and pd.isnull(row[f'{value}{group_number}']) == False:
+                        cell_content = row[f'{value}{group_number}']
+                        if isinstance(cell_content, float):
+                            cell_content = int(cell_content)
+                        object[key] = cell_content
+
+                doc['subject'] = subject
+                doc['predicate'] = predicate
+                doc['object'] = object
+                doc['references'] = references
+                yield doc
 
 
 stuff = load_data('')
