@@ -1,7 +1,6 @@
 import pandas as pd
 import os
 import re
-import json
 import warnings
 
 
@@ -179,13 +178,3 @@ def load_data(data_folder):
                 doc['object'] = object
                 doc['references'] = references
                 yield doc
-
-
-stuff = load_data('')
-
-json_data = {"records": []}
-for item in stuff:
-    json_data["records"].append(item)
-
-with open('gtrx_data.json', 'w') as f:
-    json.dump(json_data, f)
