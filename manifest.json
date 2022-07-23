@@ -1,5 +1,6 @@
 {
     "version": "0.2",
+    "requires" : ["openpyxl"],
     "__metadata__": {
         "url": "https://gtrx.rbsapp.net/about.html"
     },
