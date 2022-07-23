@@ -5,7 +5,7 @@
         "url": "https://gtrx.rbsapp.net/about.html"
     },
     "dumper" : {
-        "data_url" : ["https://www.dropbox.com/s/w5iumznv4dduyq0/GTRx_Joined_Data2-1-2022.xlsx?dl=0"],
+        "data_url" : ["https://www.dropbox.com/s/w5iumznv4dduyq0/GTRx_Joined_Data2-1-2022.xlsx"],
         "uncompress" : false,
         "release": "version:get_release"
     },
