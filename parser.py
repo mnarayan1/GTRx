@@ -98,36 +98,19 @@ def load_data(data_folder):
     }
 
     for index, row in df.iterrows():
-        _id = row['record_id'].split('-')[-1]
+        _id = row['record_id']
         subject = get_condition(df, index)
         predicate = 'treated_by'
         references = get_references(df, index)
 
         # get use groups and additional interventions for a condition
-        headers = ['use_group_', 'add_int_description_']
+        headers = ['use_group_']
         interventions_mask = df.columns.str.contains(
             '|'.join(headers))
         interventions_df = df.iloc[:, interventions_mask]
         new_df = interventions_df.iloc[index].dropna()
 
         for key, value in new_df.items():
-            # add records for additional interventions
-            if 'add_int_' in key:
-                add_int_number = key.split('add_int_description_')[-1]
-
-                add_int_description = row[f'add_int_description_{add_int_number}']
-                if pd.isnull(row[f'add_int_detail_{add_int_number}']) == False:
-                    add_int_detail = row[f'add_int_detail_{add_int_number}']
-
-                doc = {}
-                doc['_id'] = _id
-                doc['subject'] = subject
-                doc['predicate'] = predicate
-                doc['object'] = {
-                    'add_int_description': add_int_description, 'add_int_detail': add_int_detail}
-                doc['references'] = references
-                yield doc
-
             # add records for retained use groups
             if 'Retain' in value:
                 group_number = key.split('use_group_')[-1]
@@ -155,7 +138,7 @@ def load_data(data_folder):
                         continue
 
                     intervention_information = {}
-                    intervention_information['name'] = int_name
+                    intervention_information['description'] = int_name
                     intervention_information['inxight'] = inxight
                     doc['_id'] += '-'+inxight
                     if f'int_class_{int_number}' in df.columns and pd.isnull(row[f'int_class_{int_number}']) == False:
